@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 # Set up the Streamlit app
-st.title("OpenStreetMap Data Visualization")
+st.title("Smart CommUnity - TA Analyzer")
 lat = st.number_input("Enter the latitude of the area:", value=48.34)
 lon = st.number_input("Enter the longitude of the area:", value=14.49)
 zoom = st.slider("Zoom level:", min_value=1, max_value=18, value=10)
@@ -37,7 +37,7 @@ if len(features) > 0:
 
 # Plot the graph using OSMnx
 fig, ax = ox.plot_graph(G, show=False, close=False, edge_color='gray', edge_linewidth=1, edge_alpha=0.5, figsize=(10, 10))
-ax.set_title('OpenStreetMap Data Visualization')
+ax.set_title('Visualization')
 
 # Plot the features (buildings and/or amenities)
 if len(features) > 0:

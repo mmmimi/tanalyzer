@@ -24,9 +24,13 @@ if show_buildings:
     buildings = ox.geometries_from_point((lat, lon), tags={'building': True}, dist=1000)
     features.append(buildings)
 
+
 if show_amenities:
-    amenities = ox.geometries_from_point((lat, lon), tags={'amenity': True}, dist=1000)
-    features = features.append(amenities)
+    try:
+        amenities = ox.geometries_from_point((lat, lon), tags={'amenity': True}, dist=1000)
+        features.append(amenities)
+    except EmptyOverpassResponse:
+        st.warning("No amenities found within the specified distance.")
 
 # Concatenate the features GeoDataFrames
 if len(features) > 0:
@@ -34,7 +38,7 @@ if len(features) > 0:
 
 # Plot the graph using OSMnx
 fig, ax = ox.plot_graph(G, show=False, close=False, edge_color='gray', edge_linewidth=1, edge_alpha=0.5, figsize=(10, 10))
-ax.set_title('Visualization')
+ax.set_title('OpenStreetMap Data Visualization')
 
 # Plot the features (buildings and/or amenities)
 if len(features) > 0:

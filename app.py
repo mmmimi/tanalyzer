@@ -29,7 +29,7 @@ if show_amenities:
     try:
         amenities = ox.geometries_from_point((lat, lon), tags={'amenity': True}, dist=1000)
         features.append(amenities)
-    except EmptyOverpassResponse:
+    except:
         st.warning("No amenities found within the specified distance.")
 
 # Concatenate the features GeoDataFrames

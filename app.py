@@ -1,3 +1,4 @@
+# Import the required libraries
 import osmnx as ox
 import geopandas as gpd
 import pandas as pd
@@ -21,7 +22,7 @@ def main():
     features = []
 
     if show_buildings:
-        buildings = ox.features_from_point((lat, lon), tags={'building': True}, dist=1000)
+        buildings = ox.geometries_from_point((lat, lon), tags={'building': True}, dist=1000)
         features.append(buildings)
 
     if show_amenities:

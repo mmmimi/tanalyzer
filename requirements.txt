@@ -1,6 +1,6 @@
-osmnx==1.1.1
-geopandas==0.10.2
-pandas==1.3.0
+osmnx
+geopandas
+pandas
 matplotlib
 shapely==1.8.1
 streamlit

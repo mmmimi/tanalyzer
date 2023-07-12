@@ -27,15 +27,16 @@ if show_amenities:
     amenities = ox.geometries_from_point((lat, lon), tags={'amenity': True}, dist=1000)
     features = features.append(amenities)
 
-# Set the active geometry column
-features = features.set_geometry('geometry')
+# Concatenate the features GeoDataFrames
+if len(features) > 0:
+    features = gpd.GeoDataFrame(pd.concat(features, ignore_index=True), crs="EPSG:4326")
 
 # Plot the graph using OSMnx
 fig, ax = ox.plot_graph(G, show=False, close=False, edge_color='gray', edge_linewidth=1, edge_alpha=0.5, figsize=(10, 10))
 ax.set_title('Visualization')
 
 # Plot the features (buildings and/or amenities)
-if not features.empty:
+if len(features) > 0:
     features.plot(ax=ax, color='red', alpha=0.7)
 
 # Display the plot in the Streamlit app

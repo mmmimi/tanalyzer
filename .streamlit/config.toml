@@ -1,2 +1,5 @@
 [theme]
 base="dark"
+
+[dependencies.optional]
+matplotlib==3.3.3

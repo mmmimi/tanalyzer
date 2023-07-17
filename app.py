@@ -4,12 +4,33 @@ import geopandas as gpd
 import pandas as pd
 import streamlit as st
 
+# Define the example coordinates and descriptions
+example_coordinates = {
+    "Hagenberg, Austria": (48.36964, 14.5128),
+    "Lienz (Daniel), Austria": (46.8294, 12.7687),
+    "FTA-Communauté de communes du Guillestrois-Queyras , France": (44.6616, 6.6497),
+    "LTA-Communauté de communes des Baronnies en Drôme Provençale, France": (44.3555, 5.1283),
+    "Loeffingen-LTA (Anna), Germany": (47.8840, 8.3438),
+    "Elztal-FTA (Anna), Germany": (48.1442, 8.0474),
+    "Elzach-FTA (Anna), Germany": (48.1731, 8.0686),
+    "Cogne (Alessio), Italy": (45.6081, 7.3527),
+    "LTA (Darja), Slovenia": (46.6581, 16.1631),
+    "FTA (Darja), Slovenia": (46.5530, 15.6509)    
+}
+
 def main():
     # Set up the Streamlit app
     st.title("Smart CommUnity - TA Analyzer")
-    lat = st.number_input("Enter the latitude of the area:", value=48.34)
-    lon = st.number_input("Enter the longitude of the area:", value=14.49)
+
+    # Add a selection menu for the user to choose an example
+    example_choice = st.selectbox("Choose a Test Area:", list(example_coordinates.keys()))
+
+    # Retrieve the selected example coordinates
+    selected_coordinate = example_coordinates[example_choice]
+    lat = st.number_input("Enter the latitude of the area:", value=selected_coordinate[0])
+    lon = st.number_input("Enter the longitude of the area:", value=selected_coordinate[1])
     zoom = st.slider("Zoom level:", min_value=1, max_value=18, value=10)
+
 
     # Allow the user to select the data to display
     show_buildings = st.checkbox("Show Buildings")

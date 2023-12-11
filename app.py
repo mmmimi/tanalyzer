@@ -18,6 +18,15 @@ example_coordinates = {
     "FTA (Darja), Slovenia": (46.5530, 15.6509)    
 }
 
+def count_amenities(latitude, longitude, radius=1000):
+    """
+    Counts different amenities within a given radius of the specified coordinates.
+    """
+    point = (latitude, longitude)
+    amenities = ox.geometries_from_point(point, tags={'amenity': True}, dist=radius)
+    amenity_counts = amenities['amenity'].value_counts()
+    return amenity_counts.to_dict()
+
 def main():
     # Set up the Streamlit app
     st.title("Smart CommUnity - TA Analyzer")
@@ -54,6 +63,7 @@ def main():
         "emergency": "blue",
         "commercial_land": "yellow"
     }
+
 
     # Retrieve the graph from OpenStreetMap
     G = ox.graph_from_point((lat, lon), network_type='all', dist=dista)
@@ -112,6 +122,13 @@ def main():
 
     # Display the plot in the Streamlit app
     st.pyplot(fig)
+
+
+    # Add a button to count amenities
+    if st.button('Count Amenities'):
+        amenities_count = count_amenities(lat, lon, dista) 
+        st.write('Amenities count within the area:')
+        st.write(amenities_count)
 
 if __name__ == "__main__":
     main()

@@ -1,14 +1,15 @@
-# Import the required libraries
+import streamlit as st
 import osmnx as ox
 import geopandas as gpd
 import pandas as pd
-import streamlit as st
+import folium
+from streamlit_folium import folium_static
 
 # Define the example coordinates and descriptions
 example_coordinates = {
     "Hagenberg, Austria": (48.36964, 14.5128),
     "Lienz (Daniel), Austria": (46.8294, 12.7687),
-    "FTA-Communauté de communes du Guillestrois-Queyras , France": (44.6616, 6.6497),
+    "FTA-Communauté de communes du Guillestrois-Queyras, France": (44.6616, 6.6497),
     "LTA-Communauté de communes des Baronnies en Drôme Provençale, France": (44.3555, 5.1283),
     "Loeffingen-LTA (Anna), Germany": (47.8840, 8.3438),
     "Elztal-FTA (Anna), Germany": (48.1442, 8.0474),
@@ -18,6 +19,15 @@ example_coordinates = {
     "FTA (Darja), Slovenia": (46.5530, 15.6509)    
 }
 
+def get_amenities(latitude, longitude, amenity_type='all', radius=1000):
+    """
+    Retrieves amenities within a given radius of the specified coordinates.
+    Filters by amenity type if specified.
+    """
+    tags = {'amenity': True} if amenity_type == 'all' else {'amenity': amenity_type}
+    amenities = ox.geometries_from_point((latitude, longitude), tags=tags, dist=radius)
+    return amenities
+    
 def count_amenities(latitude, longitude, radius=1000):
     """
     Counts different amenities within a given radius of the specified coordinates.
@@ -27,103 +37,57 @@ def count_amenities(latitude, longitude, radius=1000):
     amenity_counts = amenities['amenity'].value_counts()
     return amenity_counts.to_dict()
 
+
 def main():
-    # Set up the Streamlit app
     st.title("Smart CommUnity - TA Analyzer")
 
-    # Add a selection menu for the user to choose an example
     example_choice = st.selectbox("Choose a Test Area:", list(example_coordinates.keys()))
-
-    # Retrieve the selected example coordinates
     selected_coordinate = example_coordinates[example_choice]
+
+    # Update latitude and longitude based on user input or selection
     lat = st.number_input("Enter the latitude of the area:", value=selected_coordinate[0])
     lon = st.number_input("Enter the longitude of the area:", value=selected_coordinate[1])
     zoom = st.slider("Zoom level:", min_value=1, max_value=10, value=5)
-    
     dista = 200 * zoom
 
-    # Allow the user to select the data to display
-    st.write("Select data to display:")
-    col1, col2 = st.columns(2)
+    # Create a Folium map centered on the selected coordinates
+    m = folium.Map(location=[lat, lon], zoom_start=14)
 
-    with col1:
-        show_buildings = st.checkbox("Show Buildings")
-
-        show_amenities = st.checkbox("Show Amenities")
-
-    with col2:
-        show_emergencies = st.checkbox("Show Emergencies")
-
-        show_commercial_land = st.checkbox("Show Commercial Land")
-        
-    # Define colors for each feature type
-    feature_colors = {
-        "building": "red",
-        "amenity": "green",
-        "emergency": "blue",
-        "commercial_land": "yellow"
-    }
-
-
-    # Retrieve the graph from OpenStreetMap
-    G = ox.graph_from_point((lat, lon), network_type='all', dist=dista)
-
-    # Get a list of the features (buildings and/or amenities)
-    features = []
-
-    if show_buildings:
-        try:
-            buildings = ox.geometries_from_point((lat, lon), tags={'building': True}, dist=1000)
-            buildings["feature_type"] = "building"  # Add a new column to specify the feature type
-            features.append(buildings)
-        except:
-            st.warning("No buildings found within the specified distance.")
-
-    if show_amenities:
-        try:
-            amenities = ox.geometries_from_point((lat, lon), tags={'amenity': True}, dist=1000)
-            amenities["feature_type"] = "amenity"  # Add a new column to specify the feature type
-            features.append(amenities)
-        except:
-            st.warning("No amenities found within the specified distance.")
-            
-    if show_emergencies:
-        try:
-            emergencies = ox.geometries_from_point((lat, lon), tags={'emergency': True}, dist=1000)
-            emergencies["feature_type"] = "emergency"  # Add a new column to specify the feature type
-            features.append(emergencies)
-        except:
-            st.warning("No emergencies found within the specified distance.")
+    # Expanded list of amenities
+    amenity_options = ['all', 'restaurant', 'hospital', 'school', 'bank', 'cafe', 'pharmacy', 'cinema', 'parking', 'fuel']
+    amenity_type = st.selectbox("Select Amenity Type:", amenity_options)
     
-    if show_commercial_land:
+    if st.button('Show Amenities'):
         try:
-            commercial_land = ox.geometries_from_point((lat, lon), tags={'landuse': 'commercial'}, dist=1000)
-            commercial_land["feature_type"] = "commercial_land"  # Add a new column to specify the feature type
-            features.append(commercial_land)
-        except:
-            st.warning("No commercial land found within the specified distance.")
+            amenities = get_amenities(lat, lon, amenity_type, radius=dista)
+        except Exception as e:
+            if "EmptyOverpassResponse" in str(e):
+                st.warning(f"No {amenity_type} amenities found within the specified distance.")
+                return
+            else:
+                raise e  # If it's a different exception, re-raise it
 
+        # Add markers to the map for valid geometries
+        for _, row in amenities.iterrows():
+            if row.geometry:
+                # Handle both Points and Polygons
+                if row.geometry.geom_type == 'Point':
+                    point_location = [row.geometry.y, row.geometry.x]
+                elif row.geometry.geom_type == 'Polygon':
+                    point_location = [row.geometry.centroid.y, row.geometry.centroid.x]
+                else:
+                    continue  # Skip if geometry is neither Point nor Polygon
 
-
-    # Concatenate the features GeoDataFrames
-    if len(features) > 0:
-        features = gpd.GeoDataFrame(pd.concat(features, ignore_index=True), crs="EPSG:4326")
-
-    # Plot the graph using OSMnx
-    fig, ax = ox.plot_graph(G, show=False, close=False, edge_color='gray', edge_linewidth=1, edge_alpha=0.5, figsize=(10, 10))
-    ax.set_title('Visualization')
-
-    # Plot the features (buildings and/or amenities) with different colors
-    for feature_type, color in feature_colors.items():
-        if len(features) > 0:
-            filtered_features = features[features["feature_type"] == feature_type]
-            if not filtered_features.empty:
-                filtered_features.plot(ax=ax, color=color, alpha=0.7)
-
-    # Display the plot in the Streamlit app
-    st.pyplot(fig)
-
-
+                tooltip = f"{row['amenity']}: {row.get('name', 'N/A')}"
+                folium.Marker(
+                    location=point_location,
+                    popup=tooltip,
+                    icon=folium.Icon(color="blue", icon="info-sign")
+                ).add_to(m)
+            
+        # Display the map in Streamlit
+        folium_static(m)
+        
     # Add a button to count amenities
     if st.button('Count Amenities'):
         amenities_count = count_amenities(lat, lon, dista) 
@@ -132,3 +96,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

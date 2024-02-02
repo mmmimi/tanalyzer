@@ -25,3 +25,7 @@ If the meanwhile, you can refer to our most recent publication:
   doi          = {10.1142/S0219649222500435}
 }
 ```
+
+## 📄 License
+
+The material is provided under the MIT License. 

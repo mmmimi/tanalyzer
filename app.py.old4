@@ -1,8 +1,6 @@
 import streamlit as st
 import osmnx as ox
 import folium
-import requests
-import json
 from streamlit_folium import folium_static
 
 # Constants
@@ -246,41 +244,12 @@ def main():
 
             folium_static(m)
     
-    if st.button('AI Analysis'):
-        # Execute the existing code to count amenities
-        amenities_count = count_amenities(lat, lon, 1000)
+    # Add a button to count amenities
+    if st.button('Count Amenities'):
+        amenities_count = count_amenities(lat, lon, RADIUS) 
         st.write('Amenities count within the area:')
         st.write(amenities_count)
-        
-        # Construct the message with the dynamic amenities_count
-        message_content = f"What is the degree of digitalization of a village located in a rural territory with these facilities: {amenities_count}? What can we do to improve it?"
-
-        # API request setup
-        url = 'https://www.chatbase.co/api/v1/chat'
-        headers = {
-            'Authorization': 'Bearer d1a408c0-5e75-40ca-99e5-424e830d26ed',
-            'Content-Type': 'application/json'
-        }
-        data = {
-            "messages": [
-                {"content": message_content, "role": "user"}
-            ],
-            "chatbotId": "X5mqGdkfYYzpPO2R7Q5Jv",
-            "stream": False,
-            "temperature": 0
-        }
-        
-        # Make the API call
-        response = requests.post(url, headers=headers, data=json.dumps(data))
-        
-        # Process the API response
-        if response.status_code == 200:
-            json_data = response.json()
-            response_text = json_data.get('text', 'No text in response')
-            st.write("Response:", response_text)
-        else:
-            error_message = response.json().get('message', 'Unknown error')
-            st.write('Error:', error_message)
+        text_area = st.text_area('AI analysis:', 'Your list provides a good snapshot of the facilities available, but it does not fully capture the technological integration and sustainability aspects that are crucial in defining a village as "smart". While the village seems well-equipped in terms of basic and some advanced amenities, additional information about its technological integration and sustainability initiatives would be necessary to accurately determine its degree of smartness.', height=300)
 
 if __name__ == "__main__":
     main()

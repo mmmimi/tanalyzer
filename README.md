@@ -52,10 +52,7 @@ If the meanwhile, you can refer to our most recent publications in this topic:
   publisher    = {Springer},
   year         = {2020},
   url          = {https://doi.org/10.1007/978-3-030-58957-8\_3},
-  doi          = {10.1007/978-3-030-58957-8\_3},
-  timestamp    = {Tue, 29 Dec 2020 18:36:19 +0100},
-  biburl       = {https://dblp.org/rec/conf/egovis/GilPTBGLLVDB20.bib},
-  bibsource    = {dblp computer science bibliography, https://dblp.org}
+  doi          = {10.1007/978-3-030-58957-8\_3}
 }
 ```
 

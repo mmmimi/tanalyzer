@@ -3,13 +3,21 @@ import osmnx as ox
 import folium
 import requests
 import json
+import pandas as pd
 from streamlit_folium import folium_static
+from fpdf import FPDF
 
 # Constants
 RADIUS = 1000
 DEFAULT_COORDINATES = (48.36964, 14.5128)
+API_URL = 'https://www.chatbase.co/api/v1/chat'
+API_HEADERS = {
+    'Authorization': 'Bearer d1a408c0-5e75-40ca-99e5-424e830d26ed',
+    'Content-Type': 'application/json'
+}
+CHATBOT_ID = 'X5mqGdkfYYzpPO2R7Q5Jv'
 
-# Define the example coordinates and descriptions
+# Example coordinates and descriptions
 example_coordinates = {
     "Hagenberg, Austria": (48.36964, 14.5128),
     "Lienz (Daniel), Austria": (46.8294, 12.7687),
@@ -91,23 +99,45 @@ example_coordinates = {
 }
 
 def get_amenities(latitude, longitude, amenity_type='all', radius=RADIUS):
+    """
+    Fetches amenities around the given latitude and longitude.
+    """
     tags = {'amenity': True} if amenity_type == 'all' else {'amenity': amenity_type}
-    amenities = ox.features_from_point((latitude, longitude), tags=tags, dist=radius)
+    amenities = ox.geometries_from_point((latitude, longitude), tags=tags, dist=radius)
     return amenities
 
+def count_entities(entities):
+    """
+    Counts different types of entities.
+    """
+    if 'entity_type' in entities.columns:
+        entity_counts = entities['entity_type'].value_counts()
+    else:
+        entity_counts = entities.index.value_counts()
+    return entity_counts.to_dict()
+
 def count_amenities(latitude, longitude, radius=RADIUS):
-    point = (latitude, longitude)
-    amenities = ox.features_from_point(point, tags={'amenity': True}, dist=radius)
+    """
+    Counts amenities around the given latitude and longitude.
+    """
+    amenities = get_amenities(latitude, longitude, radius=radius)
     amenity_counts = amenities['amenity'].value_counts()
     return amenity_counts.to_dict()
 
 def get_smart_entities(latitude, longitude, ent, radius=RADIUS):
-    parts = ent.split('=')
-    tags = {parts[0]: parts[1]}
-    entities = ox.features_from_point((latitude, longitude), tags=tags, dist=radius)
+    """
+    Fetches entities of a specific type around the given latitude and longitude.
+    """
+    key, value = ent.split('=')
+    tags = {key: value}
+    entities = ox.geometries_from_point((latitude, longitude), tags=tags, dist=radius)
+    entities['entity_type'] = ent
     return entities
 
 def add_markers_to_map(m, entities, entity_type):
+    """
+    Adds markers to the map for given entities.
+    """
     for _, row in entities.iterrows():
         if row.geometry:
             if row.geometry.geom_type == 'Point':
@@ -120,234 +150,165 @@ def add_markers_to_map(m, entities, entity_type):
             tooltip = f"{entity_type}: {row.get('name', 'N/A')}"
             folium.CircleMarker(
                 location=point_location,
-                radius=10,  # This controls the size of the marker. Change it as needed.
+                radius=10,
                 popup=tooltip,
                 color="blue",
                 fill=True,
                 fill_color="blue"
             ).add_to(m)
 
+def generate_pdf(text):
+    """
+    Generates a PDF from the provided text.
+    """
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_left_margin(15)
+    pdf.set_right_margin(15)
+    pdf.set_font("Arial", size=12)
+    
+    line_height = pdf.font_size * 2.5
+    for line in text.split('\n'):
+        pdf.multi_cell(0, line_height, txt=line, align='L')
+    
+    return pdf
+
+def update_message_content(lat, lon):
+    """
+    Updates the message content in the session state.
+    """
+    if st.session_state.selected_entities:
+        combined_entities = pd.concat(st.session_state.selected_entities)
+        entity_counts = count_entities(combined_entities)
+        
+        if 'all' in entity_counts:
+            amenities_count = count_amenities(lat, lon, 1000)
+            update_message_content2(str(amenities_count))
+            return
+        
+        entity_counts_filtered = {k: v for k, v in entity_counts.items() if k != 'all'}
+        detailed_info = "\n".join([f"{etype}: {count}" for etype, count in entity_counts_filtered.items()])
+        
+        st.session_state.message_content = f"What is the degree of digitalization, smartness, rural development or similar of a village located in a rural territory with these facilities:\n{detailed_info}\nWhat can we do to improve it? Do you have any suggestion?"
+
+def update_message_content2(info):
+    """
+    Updates the message content with provided information.
+    """
+    if st.session_state.selected_entities:
+        st.session_state.message_content = f"What is the degree of digitalization, smartness, rural development or similar of a village located in a rural territory with these facilities:\n{info}\nWhat can we do to improve it? Do you have any suggestion?"
+
 def main():
     st.title("Smart CommUnity - TA Analyzer")
+    
     example_choice = st.selectbox("Choose a Test Area:", list(example_coordinates.keys()), key='example_choice')
     selected_coordinate = example_coordinates[example_choice]
     lat = st.number_input("Enter the latitude of the area:", value=selected_coordinate[0])
     lon = st.number_input("Enter the longitude of the area:", value=selected_coordinate[1])
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Default", "SmartEconomy", "SmartGovernance", "SmartMobility", "SmartEnvironment", "SmartPeople", "SmartLiving"])
-
-    # Define m here
+    
     m = folium.Map(location=[lat, lon], zoom_start=14)
 
-    with tab1:
-        # Expanded list of amenities
+    tab_names = ["Default", "SmartEconomy", "SmartGovernance", "SmartMobility", "SmartEnvironment", "SmartPeople", "SmartLiving"]
+    tabs = st.tabs(tab_names)
+
+    with tabs[0]:
         amenity_options = ['all', 'restaurant', 'hospital', 'school', 'bank', 'cafe', 'pharmacy', 'cinema', 'parking', 'fuel']
-        amenity_type = st.selectbox("Select Amenity Type:", amenity_options,  key='amenity_type' )
+        amenity_type = st.selectbox("Select Amenity Type:", amenity_options, key='amenity_type')
         
-        if st.button('Show Amenities', key='amenity' ):
+        if st.button('Show Amenities', key='amenity'):
             try:
                 amenities = get_amenities(lat, lon, amenity_type, RADIUS)
+                amenities['entity_type'] = amenity_type
+                add_markers_to_map(m, amenities, amenity_type)
+                st.session_state.selected_entities.append(amenities)
+                update_message_content(lat, lon)
             except Exception as e:
                 if "EmptyOverpassResponse" in str(e):
                     st.warning(f"No {amenity_type} amenities found within the specified distance.")
-                    return
                 else:
-                    raise e  # If it's a different exception, re-raise it
+                    st.error(f"An error occurred: {str(e)}")
 
-            # Add markers to the map for valid geometries
-            add_markers_to_map(m, amenities, amenity_type)
-
-            # Display the map in Streamlit
-            folium_static(m)
-
-    with tab2:
-        smart_economy_entities = [
+    smart_entities_options = {
+        "SmartEconomy": [
             'POI', 'amenity=marketplace', 'amenity=vending_machine', 'building=commercial', 
-            'man_made=offshore_platform', 'man_made=petroleum_well', 'man_made=pipeline', 'man_made=works', 'office= company',
+            'man_made=offshore_platform', 'man_made=petroleum_well', 'man_made=pipeline', 'man_made=works', 'office=company',
             'office=coworking', 'shop=all', 'tourism=alpine_hut', 'tourism=attraction', 'tourism=camp_pitch', 'tourism=camp_site',
             'tourism=caravan_site', 'building=chalet', 'building=guest_house', 'building=hostel', 'building=hotel', 'tourism=information',
-            'tourism motel', 'building=museum', 'tourism=wilderness_hut'
+            'tourism=motel', 'building=museum', 'tourism=wilderness_hut'
+        ],
+        "SmartGovernance": ['amenity=townhall', 'amenity=courthouse', 'amenity=police', 'amenity=fire_station', 'building=government'],
+        "SmartMobility": [
+            'barrier=bump_gate', 'barrier=bus_trap', 'barrier=cycle_barrier', 'barrier=motorcycle_barrier',
+            'barrier=sump_buster', 'building=train_station', 'building=transportation', 'building=parking',
+            'highway=motorway', 'public_transport=all', 'railway=all', 'route=all'
+        ],
+        "SmartEnvironment": [
+            "amenity=recycling", "boundary=forest", "boundary=forest_compartment", "boundary=hazard",
+            "boundary=national_park", "boundary=protected_area", "leisure=garden", "leisure=nature_reserve",
+            "leisure=park", "man_made=gasometer", "man_made=mineshaft", "man_made=wastewater_plant",
+            "man_made=water_works", "natural=grass", "water=river"
+        ],
+        "SmartPeople": [
+            "amenity=college", "amenity=kindergarten", "amenity=school", "amenity=university",
+            "office=educational_institution", "office=employment_agency", "amenity=refugee_site"
+        ],
+        "SmartLiving": [
+            "amenity=internet_cafe", "amenity=public_bath", "amenity=vending_machine",
+            "amenity=water_point", "amenity=hospital", "amenity=museum",
+            "amenity=place_of_worship", "amenity=fire_station", "amenity=toilets",
         ]
-        
-        selected_entity = st.selectbox("Select Entity Type:", smart_economy_entities, key='smart_economy_entity')
-        
-        if st.button('Show Selected Entities', key='t2'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
+    }
 
-            add_markers_to_map(m, entities, selected_entity)
+    for i, tab_name in enumerate(tab_names[1:], start=1):
+        with tabs[i]:
+            selected_entity = st.selectbox(f"Select Entity Type for {tab_name}:", smart_entities_options[tab_name], key=f'{tab_name}_entity')
+            if st.button(f'Show Selected Entities for {tab_name}', key=f'tab{i}'):
+                try:
+                    entities = get_smart_entities(lat, lon, selected_entity, RADIUS)
+                    add_markers_to_map(m, entities, selected_entity)
+                    st.session_state.selected_entities.append(entities)
+                    update_message_content(lat, lon)
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
 
-            folium_static(m)
-            
-    with tab3:  # SmartGovernance tab
-        smart_governance_entities = ['amenity=townhall', 'amenity=courthouse', 'amenity=police', 'amenity=fire_station', 'building=government']  # replace with actual entity types
-        selected_entity2 = st.selectbox("Select Entity Type:", smart_governance_entities, key='smart_governance_entity')
+    folium_static(m)
 
-        if st.button('Show Entities', key='entity'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity2, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
-
-            add_markers_to_map(m, entities, selected_entity2)
-
-            folium_static(m)
-            
-    with tab4:
-        smart_mobility_entities = [
-            'barrier=bump_gate',
-            'barrier=bus_trap',
-            'barrier=cycle_barrier',
-            'barrier=motorcycle_barrier',
-            'barrier=sump_buster',
-            'building=train_station',
-            'building=transportation',
-            'building=parking',
-            'highway=motorway',
-            'public_transport=all',
-            'railway=all',
-            'route=all'
-        ]   
-        
-        selected_entity3 = st.selectbox("Select Entity Type:", smart_mobility_entities, key='smart_mobility_entity')
-        
-        if st.button('Show Selected Entities', key='t4'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity3, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
-
-            add_markers_to_map(m, entities, selected_entity3)
-
-            folium_static(m)
-            
-    with tab5:
-        smart_environment_entities = [
-            "amenity=recycling",
-            "boundary=forest",
-            "boundary=forest_compartment",
-            "boundary=hazard",
-            "boundary=national_park",
-            "boundary=protected_area",
-            "leisure=garden", 
-            "leisure=nature_reserve", 
-            "leisure=park", 
-            "man_made=gasometer",
-            "man_made=mineshaft",
-            "man_made=wastewater_plant",
-            "man_made=water_works",
-            "natural=grass",
-            "water=river"
-        ]
-  
-        selected_entity5 = st.selectbox("Select Entity Type:", smart_environment_entities, key='smart_environment_entity')
-        
-        if st.button('Show Selected Entities', key='t5'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity5, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
-
-            add_markers_to_map(m, entities, selected_entity5)
-
-            folium_static(m)
-            
-    with tab6:
-        smart_people_entities = [    # General Educational Facilities
-            "amenity=college",
-            "amenity=kindergarten",
-            "amenity=school",
-            "amenity=university",
-            "office=educational_institution",
-            "office=employment_agency",
-            "amenity=refugee_site"
-        ]  
-        
-        selected_entity6 = st.selectbox("Select Entity Type:", smart_people_entities, key='smart_people_entity')
-        
-        if st.button('Show Selected Entities', key='t6'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity6, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
-
-            add_markers_to_map(m, entities, selected_entity6)
-
-            folium_static(m)
-            
-    with tab7:
-        smart_living_entities = [
-                "amenity=internet_cafe",
-                "amenity=public_bath",
-                "amenity=vending_machine",
-                "amenity=water_point",
-                "amenity=hospital",
-                "amenity=museum",
-                "amenity=place_of_worship",
-                "amenity=fire_station",
-                "amenity=toilets",
-        ] 
-        
-        selected_entity7 = st.selectbox("Select Entity Type:", smart_living_entities, key='smart_living_entity')
-        
-        if st.button('Show Selected Entities', key='t7'):
-            try:
-                entities = get_smart_entities(lat, lon, selected_entity7, RADIUS)
-            except Exception as e:
-                st.error("An error occurred while fetching entities.")
-                st.error(e)
-                return
-
-            add_markers_to_map(m, entities, selected_entity7)
-
-            folium_static(m)
+    st.subheader("AI Assistant")
     
-    if st.button('AI Analysis'):
-        # Execute the existing code to count amenities
-        amenities_count = count_amenities(lat, lon, 1000)
-        st.write('Amenities count within the area:')
-        st.write(amenities_count)
-        
-        # Construct the message with the dynamic amenities_count
-        message_content = f"What is the degree of digitalization of a village located in a rural territory with these facilities: {amenities_count}? What can we do to improve it?"
-
-        # API request setup
-        url = 'https://www.chatbase.co/api/v1/chat'
-        headers = {
-            'Authorization': 'Bearer d1a408c0-5e75-40ca-99e5-424e830d26ed',
-            'Content-Type': 'application/json'
-        }
+    if st.button('Analysis', key='ai_analysis'):
         data = {
             "messages": [
-                {"content": message_content, "role": "user"}
+                {"content": st.session_state.message_content, "role": "user"}
             ],
-            "chatbotId": "X5mqGdkfYYzpPO2R7Q5Jv",
+            "chatbotId": CHATBOT_ID,
             "stream": False,
             "temperature": 0
         }
         
-        # Make the API call
-        response = requests.post(url, headers=headers, data=json.dumps(data))
+        response = requests.post(API_URL, headers=API_HEADERS, data=json.dumps(data))
         
-        # Process the API response
         if response.status_code == 200:
             json_data = response.json()
             response_text = json_data.get('text', 'No text in response')
             st.write("Response:", response_text)
+            
+            pdf = generate_pdf(response_text)
+            pdf_output = f"AI_Analysis_{lat}_{lon}.pdf"
+            pdf.output(pdf_output)
+            with open(pdf_output, "rb") as pdf_file:
+                st.download_button("Download Analysis as PDF", pdf_file, file_name=f"AI_Analysis_{lat}_{lon}.pdf")
         else:
             error_message = response.json().get('message', 'Unknown error')
             st.write('Error:', error_message)
 
 if __name__ == "__main__":
+    # Initialize session state
+    if 'selected_entities' not in st.session_state:
+        st.session_state.selected_entities = []
+
+    if 'message_content' not in st.session_state:
+        st.session_state.message_content = ""
+
     main()
+

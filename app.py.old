@@ -7,6 +7,7 @@ import streamlit as st
 # Define the example coordinates and descriptions
 example_coordinates = {
     "Hagenberg, Austria": (48.36964, 14.5128),
+    "Rechberg, Austria": (48.32087330874017, 14.711835607540735),
     "Lienz (Daniel), Austria": (46.8294, 12.7687),
     "FTA-Communauté de communes du Guillestrois-Queyras , France": (44.6616, 6.6497),
     "LTA-Communauté de communes des Baronnies en Drôme Provençale, France": (44.3555, 5.1283),

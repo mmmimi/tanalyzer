@@ -19,6 +19,7 @@ CHATBOT_ID = 'X5mqGdkfYYzpPO2R7Q5Jv'
 
 # Example coordinates and descriptions
 example_coordinates = {
+        "Rechberg, Austria": (48.32087330874017, 14.711835607540735),
     "Hagenberg, Austria": (48.36964, 14.5128),
     "Lienz (Daniel), Austria": (46.8294, 12.7687),
     "FTA-Communauté de communes du Guillestrois-Queyras, France": (44.6616, 6.6497),
